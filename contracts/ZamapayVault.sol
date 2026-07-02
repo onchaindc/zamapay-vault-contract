@@ -11,7 +11,7 @@ contract ZamapayVault is ZamaEthereumConfig {
 
     event Shielded(address indexed user, uint256 ethAmount);
     event Transferred(address indexed from, address indexed to);
-    event UnshieldRequested(address indexed user);
+    event Unshielded(address indexed user);
 
     function shield(externalEuint64 encryptedAmount, bytes calldata inputProof) external payable {
         require(msg.value > 0, "ZamapayVault: ETH required");
@@ -56,5 +56,14 @@ contract ZamapayVault is ZamaEthereumConfig {
         emit Transferred(msg.sender, to);
     }
 
-    function unshield(externalEuint64, bytes calldata) external pure {}
+    function unshield(externalEuint64 encryptedAmount, bytes calldata inputProof) external {
+        euint64 amount = FHE.fromExternal(encryptedAmount, inputProof);
+
+        _balances[msg.sender] = FHE.sub(_balances[msg.sender], amount);
+
+        FHE.allowThis(_balances[msg.sender]);
+        FHE.allow(_balances[msg.sender], msg.sender);
+
+        emit Unshielded(msg.sender);
+    }
 }
