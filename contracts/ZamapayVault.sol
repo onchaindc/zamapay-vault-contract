@@ -10,7 +10,7 @@ contract ZamapayVault is ZamaEthereumConfig {
     mapping(address user => euint64 balance) private _balances;
 
     event Shielded(address indexed user, uint256 ethAmount);
-    event TransferRequested(address indexed from, address indexed to);
+    event Transferred(address indexed from, address indexed to);
     event UnshieldRequested(address indexed user);
 
     function shield(externalEuint64 encryptedAmount, bytes calldata inputProof) external payable {
@@ -34,7 +34,27 @@ contract ZamapayVault is ZamaEthereumConfig {
         return _balances[user];
     }
 
-    function transfer(address, externalEuint64, bytes calldata) external pure {}
+    function transfer(address to, externalEuint64 encryptedAmount, bytes calldata inputProof) external {
+        require(to != address(0), "ZamapayVault: zero recipient");
+        require(to != msg.sender, "ZamapayVault: self transfer");
+
+        euint64 amount = FHE.fromExternal(encryptedAmount, inputProof);
+
+        _balances[msg.sender] = FHE.sub(_balances[msg.sender], amount);
+
+        if (FHE.isInitialized(_balances[to])) {
+            _balances[to] = FHE.add(_balances[to], amount);
+        } else {
+            _balances[to] = amount;
+        }
+
+        FHE.allowThis(_balances[msg.sender]);
+        FHE.allow(_balances[msg.sender], msg.sender);
+        FHE.allowThis(_balances[to]);
+        FHE.allow(_balances[to], to);
+
+        emit Transferred(msg.sender, to);
+    }
 
     function unshield(externalEuint64, bytes calldata) external pure {}
 }
