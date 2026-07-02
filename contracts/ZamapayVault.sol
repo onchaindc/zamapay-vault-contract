@@ -9,11 +9,26 @@ import {ZamaEthereumConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 contract ZamapayVault is ZamaEthereumConfig {
     mapping(address user => euint64 balance) private _balances;
 
-    event ShieldRequested(address indexed user, uint256 ethAmount);
+    event Shielded(address indexed user, uint256 ethAmount);
     event TransferRequested(address indexed from, address indexed to);
     event UnshieldRequested(address indexed user);
 
-    function shield(externalEuint64, bytes calldata) external payable {}
+    function shield(externalEuint64 encryptedAmount, bytes calldata inputProof) external payable {
+        require(msg.value > 0, "ZamapayVault: ETH required");
+
+        euint64 amount = FHE.fromExternal(encryptedAmount, inputProof);
+
+        if (FHE.isInitialized(_balances[msg.sender])) {
+            _balances[msg.sender] = FHE.add(_balances[msg.sender], amount);
+        } else {
+            _balances[msg.sender] = amount;
+        }
+
+        FHE.allowThis(_balances[msg.sender]);
+        FHE.allow(_balances[msg.sender], msg.sender);
+
+        emit Shielded(msg.sender, msg.value);
+    }
 
     function balanceOf(address user) external view returns (euint64) {
         return _balances[user];
